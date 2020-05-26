@@ -6,6 +6,8 @@ sua linha digitável.
 
 Sendo assim esse código é apenas para quem tem interesse em ler o código de barra e ter como retorno a linha digitável
 
+<img src="https://saraiva89.com/dev/leituraboleto/leituracodigobarra.GIF" width="50%">
+
 ### para esse projeto é utilizado a biblioteca quagga.js, veja sua documentacão aqui: https://serratus.github.io/quaggaJS/#api
 
 ## Observação
