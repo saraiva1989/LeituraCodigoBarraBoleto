@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ler boleto</title>
+</head>
+
+<style>
+    .viewport {
+        height: 100px;
+        width: 100%;
+        object-fit: cover;
+    }
+
+    .drawingBuffer {
+        height: 100px;
+        width: 100%;
+        object-fit: cover;
+        margin-top: -100px;
+        display: block;
+    }
+
+    .viewport video {
+        height: 100px;
+        width: 100%;
+        object-fit: cover;
+    }
+
+    @media (max-width: 603px) {
+        .viewport {
+            height: 100px;
+        }
+
+        .drawingBuffer {
+            height: 100px;
+            margin-top: -100px;
+        }
+
+        .viewport video {
+            height: 100px;
+        }
+    }
+</style>
+
+<body>
+    <div id="interactive" class="viewport"></div>
+    <script src="quagga.min.js" type="text/javascript"></script>
+</body>
+
+<script>
+    //Inicializa o Quagga (lib para ler o codigo de barra)
+    //ver documentacão https://serratus.github.io/quaggaJS/#api
+    Quagga.init({
+        inputStream: {
+            type: "LiveStream",
+            constraints: {
+                width: { min: 1280 },
+                height: { min: 720 },
+                facingMode: "environment",
+                aspectRatio: { min: 1, max: 2 }
+            },
+        },
+        locator: {
+            patchSize: "medium",
+            halfSample: true
+        },
+        numOfWorkers: 2,
+        frequency: 10,
+        decoder: {
+            readers: [{
+                format: "i2of5_reader",
+                config: {}
+            }],
+        },
+        locate: true,
+        singleChannel: true
+    }, function (err) {
+        if (err) {
+            console.log(err);
+            return
+        }
+        console.log("Initialization finished. Ready to start");
+        Quagga.start();
+    });
+
+    //Funcão que fica lendo o código de barra e atualizando o canvas (quadrado verde)
+    Quagga.onProcessed(function (result) {
+        var drawingCtx = Quagga.canvas.ctx.overlay,
+            drawingCanvas = Quagga.canvas.dom.overlay;
+
+        if (result) {
+            if (result.boxes) {
+                drawingCtx.clearRect(0, 0, parseInt(drawingCanvas.getAttribute("width")), parseInt(drawingCanvas.getAttribute("height")));
+                result.boxes.filter(function (box) {
+                    return box !== result.box;
+                }).forEach(function (box) {
+                    Quagga.ImageDebug.drawPath(box, { x: 0, y: 1 }, drawingCtx, { color: "green", lineWidth: 2 });
+                });
+            }
+
+            if (result.box) {
+                Quagga.ImageDebug.drawPath(result.box, { x: 0, y: 1 }, drawingCtx, { color: "#00F", lineWidth: 2 });
+            }
+
+            if (result.codeResult && result.codeResult.code) {
+                Quagga.ImageDebug.drawPath(result.line, { x: 'x', y: 'y' }, drawingCtx, { color: 'red', lineWidth: 3 });
+            }
+        }
+    });
+
+    var encontrouCodigo = [];
+    //Essa Funcão é chamada quando um código de barra válido é detetado
+    Quagga.onDetected(function (result) {
+        var code = result.codeResult.code;
+        var linhadigitavel = RetornarLinhaDigitavel(code)
+        if (linhadigitavel.includes('boleto')) {
+            return
+        }
+        if (encontrouCodigo.filter(x => x == linhadigitavel).length <= 3) {
+            encontrouCodigo.push(linhadigitavel)
+            return;
+        }
+        encontrouCodigo = []
+        alert(linhadigitavel)
+    });
+
+    //Funcão responsavel por calcular os numeros verificadores referente a linha
+    //Digitavél do boleto
+    function calcularVerificadorMod10(codigoBarraSessao) {
+        if (codigoBarraSessao === "") {
+            return "";
+        }
+        let digitoVerificador = 0;
+        let numeroPar = true;
+        let i = codigoBarraSessao.length
+        for (let i = codigoBarraSessao.length; i > 0; i--) {
+            const digito = parseInt(codigoBarraSessao[i - 1]);
+            if (numeroPar) {
+                digitoVerificador += Math.floor((digito * 2) / 10) + ((digito * 2) % 10);
+            } else {
+                digitoVerificador += digito;
+            }
+            numeroPar = !numeroPar;
+        }
+        digitoVerificador = digitoVerificador % 10;
+        if (digitoVerificador !== 0) {
+            digitoVerificador = 10 - digitoVerificador;
+        }
+        return String(digitoVerificador);
+    }
+
+    //Funcão que retorna a linha digitavel (valida se é conta de consumo ou boleto de cobranca)
+    function RetornarLinhaDigitavel(codigoBarra) {
+        let codigoBarraFormatado = codigoBarra.replace(/\./g, '').replace(/ /g, '')
+        if (codigoBarraFormatado.length !== 44) {
+            return "boleto inválido"
+        }
+        else {
+            if (codigoBarraFormatado.slice(0, 1) !== '8') {
+                return LinhaDigitavelBoleto(codigoBarraFormatado)
+            }
+            else {
+                return LinhaDigitavelConsumo(codigoBarraFormatado)
+            }
+        }
+    }
+
+    //funcão que gera a linha digitavel para conta de consumo
+    function LinhaDigitavelConsumo(codigoBarra) {
+        let blocoUm = codigoBarra.slice(0, 11)
+        let digitoVerificadorUm = calcularVerificadorMod10(blocoUm)
+        let blocoDois = codigoBarra.slice(11, 22)
+        let digitoVerificadorDois = calcularVerificadorMod10(blocoDois)
+        let blocoTres = codigoBarra.slice(22, 33)
+        let digitoVerificadorTres = calcularVerificadorMod10(blocoTres)
+        let blocoQuatro = codigoBarra.slice(33, 44)
+        let digitoVerificadorQuatro = calcularVerificadorMod10(blocoQuatro)
+
+        return blocoUm
+            + digitoVerificadorUm + " "
+            + blocoDois
+            + digitoVerificadorDois + " "
+            + blocoTres
+            + digitoVerificadorTres + " "
+            + blocoQuatro
+            + digitoVerificadorQuatro
+    }
+
+    //funcão que gera a linha digitavel para boleto de cobranca
+    function LinhaDigitavelBoleto(codigoBarra) {
+        let codigoBanco = codigoBarra.slice(0, 3)
+        let codigoMoeda = codigoBarra.slice(3, 4)
+        let campoLivreBlocoUm = codigoBarra.slice(19, 24)
+        let digitoVerificadorUm = calcularVerificadorMod10(`${codigoBanco}${codigoMoeda}${campoLivreBlocoUm}`)
+        let campoLivreBlocoDois = codigoBarra.slice(24, 34)
+        let digitoVerificadorDois = calcularVerificadorMod10(campoLivreBlocoDois)
+        let campoLivreBlocoTres = codigoBarra.slice(34, 44)
+        let digitoVerificadorTres = calcularVerificadorMod10(campoLivreBlocoTres)
+        let digitoVerificadorQuatro = codigoBarra.slice(4, 5)
+        let fatorVencimento = codigoBarra.slice(5, 9)
+        let valor = codigoBarra.slice(9, 19)
+
+        return codigoBanco
+            + codigoMoeda
+            + campoLivreBlocoUm
+            + digitoVerificadorUm + " "
+            + campoLivreBlocoDois
+            + digitoVerificadorDois + " "
+            + campoLivreBlocoTres
+            + digitoVerificadorTres + " "
+            + digitoVerificadorQuatro + " "
+            + fatorVencimento
+            + valor
+    }
+</script>
+
+</html>
