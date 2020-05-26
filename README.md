@@ -15,4 +15,4 @@ em sites que possui SSL (https). Sendo assim para que possa ser feito os teste �
 hospedagem e que o domínio tenha SSL. Na máquina local funcionará apenas na webcam do notebook (ou caso consiga simular um 
 ssl em sua rede local).
 
-Url para teste: 
+Url para teste: https://saraiva89.com/dev/leituraboleto/
